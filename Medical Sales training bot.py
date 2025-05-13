@@ -2,7 +2,7 @@ import openai
 import os
 
 # Secure your key in production! (for now, direct assignment is fine for testing)
-openai.api_key = "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"
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 def run_chat():
     print("🎯 Welcome to the Sales Training Chatbot!")
