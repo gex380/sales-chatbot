@@ -1,4 +1,5 @@
 import openai
+import streamlit as st
 import os
 
 # Secure your key in production! (for now, direct assignment is fine for testing)
