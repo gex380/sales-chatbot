@@ -1,74 +1,93 @@
-import openai
 import streamlit as st
-import os
+import openai
 
-# Secure your key in production! (for now, direct assignment is fine for testing)
+# Load OpenAI API key securely
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-def run_chat():
-    print("🎯 Welcome to the Sales Training Chatbot!")
-    print("This chatbot simulates a real sales conversation in a healthcare setting.")
-    print("Your goal is to play the role of a sales representative trying to introduce a new medical software product.")
-    print("The bot will act as a potential client — you’ll handle objections, ask questions, and try to guide the conversation.")
-    print("After 3 interactions, you'll receive a performance score and feedback.\n")
-    print("📝 Type 'exit' at any time to end the simulation.\n")
+st.set_page_config(page_title="Healthcare Sales Chatbot")
+st.title("🤖 Sales Training Chatbot for Healthcare Reps")
 
-    print("💡 Example starter questions you can ask the client:")
-    print("- What software are you currently using?")
-    print("- What are some challenges you're facing with your current system?")
-    print("- How satisfied are you with your vendor's support?")
-    print("- If there’s one thing you could improve in your system, what would it be?")
-    print("- Are you open to exploring new solutions that may better meet your needs?\n")
+st.markdown("""
+Welcome to the **AI-powered sales training chatbot**.  
+You're the sales rep — the bot is the potential client.  
+After 3 messages, you'll receive a score and coaching feedback.
 
-    messages = [
+💡 **Starter questions you can try:**
+- What software are you currently using?
+- What challenges are you facing?
+- How satisfied are you with your current system?
+- Are you open to a better solution?
+""")
+
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = [
         {
             "role": "system",
             "content": (
                 "You are simulating a realistic healthcare software sales scenario. "
                 "Your role is to play the potential client at a hospital or clinic who is being approached by a sales representative (the user). "
-                "Do NOT take the role of a salesperson. Wait for the user to begin the conversation and respond as a professional healthcare administrator or department lead evaluating software vendors. "
-                "Mention your current provider, raise common objections (vendor loyalty, budget, security), or ask questions about the new solution as appropriate. "
-                "Stay in character and do not provide feedback unless explicitly asked."
+                "Do NOT take the role of a salesperson. Wait for the user to begin the conversation and respond as a professional healthcare administrator. "
+                "Mention your current provider, raise objections (vendor loyalty, budget), or ask questions. Stay in character."
             )
         }
     ]
+    st.session_state.user_turns = 0
+    st.session_state.feedback_given = False
 
-    user_turns = 0
+# Display chat history
+for msg in st.session_state.messages[1:]:
+    with st.chat_message("user" if msg["role"] == "user" else "assistant"):
+        st.markdown(msg["content"])
 
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == "exit":
-            break
+# Chat input box
+if not st.session_state.feedback_given:
+    user_input = st.chat_input("Type your message here...")
+    if user_input:
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        st.session_state.user_turns += 1
 
-        messages.append({"role": "user", "content": user_input})
-        user_turns += 1
+        with st.chat_message("user"):
+            st.markdown(user_input)
 
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages
-        )
+        with st.spinner("AI is thinking..."):
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=st.session_state.messages
+            )
+            reply = response.choices[0].message.content
 
-        reply = response.choices[0].message.content
-        print("AI:", reply)
-        messages.append({"role": "assistant", "content": reply})
+        st.session_state.messages.append({"role": "assistant", "content": reply})
 
-        # After 3 user messages, end and generate feedback
-        if user_turns >= 3:
-            print("\n--- Generating feedback on your performance... ---\n")
-            messages.append({
+        with st.chat_message("assistant"):
+            st.markdown(reply)
+
+        # Trigger feedback after 3 user turns
+        if st.session_state.user_turns >= 3:
+            st.session_state.feedback_given = True
+
+            st.session_state.messages.append({
                 "role": "system",
                 "content": (
-                    "Now that the conversation is complete, evaluate the user's performance in the role of a sales representative. "
-                    "Score them out of 10 based on professionalism, handling objections, and persuasiveness. "
-                    "Then provide 2–3 specific suggestions for improvement."
+                    "Now evaluate the user's performance in the role of a sales rep. "
+                    "Score them out of 10 based on professionalism, objection handling, and clarity. "
+                    "Then provide 2–3 improvement suggestions."
                 )
             })
 
-            feedback = openai.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages
-            )
-            print("Feedback:\n" + feedback.choices[0].message.content)
-            break
+            with st.spinner("Analyzing your performance..."):
+                feedback = openai.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=st.session_state.messages
+                )
+                feedback_text = feedback.choices[0].message.content
 
-run_chat()
+            st.markdown("---")
+            st.subheader("📊 Sales Performance Feedback")
+            st.success(feedback_text)
+
+# Reset button
+if st.button("🔄 Start Over"):
+    for key in ["messages", "user_turns", "feedback_given"]:
+        st.session_state.pop(key, None)
+    st.experimental_rerun()
